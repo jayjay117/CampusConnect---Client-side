@@ -172,6 +172,8 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
+        // API base - set from hosting environment if needed
+        const API_BASE = window.__API_BASE__ || 'https://api.example.com';
 
         // Main App Component
         function App() {
@@ -182,77 +184,82 @@
                 { id: 'question', label: 'Question', icon: '❓', color: 'category-question' }
             ];
 
-            const [messages, setMessages] = useState([
-                {
-                    id: 1,
-                    text: "The library should stay open later during exam season!",
-                    timestamp: new Date(Date.now() - 120000),
-                    likes: 5,
-                    category: 'suggestion'
-                },
-                {
-                    id: 2,
-                    text: "Can we have more vegan options in the cafeteria?",
-                    timestamp: new Date(Date.now() - 300000),
-                    likes: 12,
-                    category: 'suggestion'
-                },
-                {
-                    id: 3,
-                    text: "The Wi-Fi in the student lounge is really slow.",
-                    timestamp: new Date(Date.now() - 600000),
-                    likes: 8,
-                    category: 'complaint'
-                },
-                {
-                    id: 4,
-                    text: "I love the new study spaces in the science building!",
-                    timestamp: new Date(Date.now() - 900000),
-                    likes: 15,
-                    category: 'appreciation'
+            const [messages, setMessages] = useState([]);
+            const [loadingMessages, setLoadingMessages] = useState(false);
+
+            // Load messages from API on mount
+            useEffect(() => {
+                let cancelled = false;
+                async function load() {
+                    setLoadingMessages(true);
+                    try {
+                        const res = await fetch(`${API_BASE}/api/messages`);
+                        if (!res.ok) throw new Error('Failed to fetch messages');
+                        const data = await res.json();
+                        if (!cancelled) {
+                            // Map timestamp strings to Date where possible
+                            const normalized = data.map(m => ({ ...m, timestamp: m.timestamp ? new Date(m.timestamp) : new Date() }));
+                            setMessages(normalized);
+                        }
+                    } catch (err) {
+                        console.error(err);
+                    } finally {
+                        if (!cancelled) setLoadingMessages(false);
+                    }
                 }
-            ]);
+                load();
+                return () => { cancelled = true; };
+            }, []);
 
             const [selectedCategory, setSelectedCategory] = useState('all');
             const [newMessage, setNewMessage] = useState('');
             const [isPosting, setIsPosting] = useState(false);
             const messagesEndRef = useRef(null);
 
-            // Function to handle posting a new message
-            const handlePostMessage = () => {
+            // Function to handle posting a new message (POST to API)
+            const handlePostMessage = async () => {
                 if (newMessage.trim() === '' || selectedCategory === 'all') return;
-
                 setIsPosting(true);
-
-                // Simulate API call delay
-                setTimeout(() => {
-                    const newMsg = {
-                        id: messages.length + 1,
-                        text: newMessage,
-                        timestamp: new Date(),
-                        likes: 0,
-                        category: selectedCategory
-                    };
-
-                    setMessages(prev => [newMsg, ...prev]);
+                try {
+                    const res = await fetch(`${API_BASE}/api/messages`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: newMessage, category: selectedCategory })
+                    });
+                    if (!res.ok) {
+                        const txt = await res.text();
+                        throw new Error(txt || 'Failed to post message');
+                    }
+                    const created = await res.json();
+                    // normalize timestamp
+                    created.timestamp = created.timestamp ? new Date(created.timestamp) : new Date();
+                    setMessages(prev => [created, ...prev]);
                     setNewMessage('');
                     setSelectedCategory('all');
+                    // scroll
+                    if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+                } catch (err) {
+                    console.error(err);
+                    alert('Could not post message: ' + (err.message || err));
+                } finally {
                     setIsPosting(false);
-
-                    // Scroll to top to see the new message
-                    if (messagesEndRef.current) {
-                        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-                    }
-                }, 500);
+                }
             };
 
-            // Function to handle liking a message
-            const handleLikeMessage = (id) => {
-                setMessages(prev =>
-                    prev.map(msg =>
-                        msg.id === id ? { ...msg, likes: msg.likes + 1 } : msg
-                    )
-                );
+            // Messages are now fetched from API only; no localStorage persistence
+
+            // Function to handle liking a message (POST to API)
+            const handleLikeMessage = async (id) => {
+                try {
+                    const res = await fetch(`${API_BASE}/api/messages/${id}/like`, { method: 'POST' });
+                    if (!res.ok) throw new Error('Failed to like');
+                    const updated = await res.json();
+                    setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, likes: updated.likes } : m));
+                } catch (err) {
+                    console.error(err);
+                    // optimistic fallback: still increment locally
+                    setMessages(prev => prev.map(msg => msg.id === id ? { ...msg, likes: msg.likes + 1 } : msg));
+                }
             };
 
             // Format timestamp to relative time
@@ -284,7 +291,7 @@
                                     <h1 className="text-xl font-bold">CampusConnect</h1>
                                 </div>
                                 <nav>
-                                    <a href="/admin" className="flex items-center gap-2 text-gray-800 hover:text-gray-700 transition-colors px-3 py-2 rounded-lg hover:bg-white/20">
+                                    <a href="admin-login.html" className="flex items-center gap-2 text-gray-800 hover:text-gray-700 transition-colors px-3 py-2 rounded-lg hover:bg-white/20">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                             <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                                         </svg>
@@ -466,9 +473,11 @@
                         <div className="container mx-auto px-4">
                             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                                 <div className="flex items-center gap-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 100-12 6 6 0 000 12zm-1-5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1zm0-4a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
-                                    </svg>
+                                    <div className="bg-white/30 rounded-lg p-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+                                        </svg>
+                                    </div>
                                     <span className="font-bold">CampusConnect</span>
                                 </div>
                                 <div className="text-center">

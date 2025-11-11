@@ -103,6 +103,8 @@
 
     <script type="text/babel">
         const { useState } = React;
+        // API base URL - can be overridden by embedding script that sets window.__API_BASE__
+        const API_BASE = window.__API_BASE__ || 'https://api.example.com';
 
         // Login Component
         function Login() {
@@ -121,20 +123,53 @@
                 setError('');
             };
 
-            const handleSubmit = (e) => {
+            // API-first login: authenticate with backend
+            const handleSubmit = async (e) => {
                 e.preventDefault();
                 setIsLoading(true);
+                setError('');
 
-                // Simulate login process
-                setTimeout(() => {
-                    if (formData.email === 'admin@campus.edu' && formData.password === 'password') {
-                        // Successful login - redirect to admin dashboard
-                        window.location.href = '/admin';
-                    } else {
-                        setError('Invalid email or password');
-                    }
+                if (!formData.email || !formData.password) {
+                    setError('Please enter email and password');
                     setIsLoading(false);
-                }, 1500);
+                    return;
+                }
+
+                try {
+                    const res = await fetch(`${API_BASE}/api/admin/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: formData.email,
+                            password: formData.password
+                        })
+                    });
+
+                    if (!res.ok) {
+                        const errorText = await res.text();
+                        throw new Error(errorText || 'Login failed');
+                    }
+
+                    const data = await res.json();
+                    const token = data.token || data.jwt || data.accessToken;
+
+                    if (!token) {
+                        throw new Error('No authentication token received from server');
+                    }
+
+                    // Store token for authenticated requests
+                    localStorage.setItem('cc_token', token);
+                    // Also optionally store admin user info if backend provides it
+                    if (data.user) {
+                        localStorage.setItem('adminUser', JSON.stringify(data.user));
+                    }
+                    // Redirect to admin dashboard (relative path)
+                    window.location.href = 'admin-dashboard.html';
+                } catch (err) {
+                    console.error(err);
+                    setError(err.message || 'Login failed. Please check your credentials and try again.');
+                    setIsLoading(false);
+                }
             };
 
             return (
@@ -245,7 +280,7 @@
                                     </div>
 
                                     <div className="text-sm">
-                                        <a href="#" className="font-medium text-primary hover:text-primary-dark">
+                                        <a href="forgot-password.html" className="font-medium text-primary hover:text-primary-dark">
                                             Forgot your password?
                                         </a>
                                     </div>
@@ -275,7 +310,7 @@
                                 </div>
                             </form>
 
-                            {/* Demo Credentials */}
+                            {/* Demo Credentials 
                             <div className="mt-8 p-4 bg-background rounded-lg border border-secondary/30">
                                 <h3 className="text-sm font-medium text-gray-700 mb-2">Demo Credentials:</h3>
                                 <div className="text-xs text-gray-600 space-y-1">
@@ -283,7 +318,7 @@
                                     <p>Password: password</p>
                                 </div>
                             </div>
-
+*/}
                             {/* Footer */}
                             <div className="mt-8 text-center">
                                 <p className="text-xs text-gray-500">
