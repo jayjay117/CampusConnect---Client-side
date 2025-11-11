@@ -13,7 +13,7 @@
     <!-- Babel for JSX transformation -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        /* Custom scrollbar for message feed */
+        /* Scrollbar styling */
         .message-feed::-webkit-scrollbar {
             width: 6px;
         }
@@ -32,7 +32,7 @@
             background: #a8a8a8;
         }
 
-        /* Animation for new messages */
+        /* Animations */
         @keyframes fadeIn {
             from {
                 opacity: 0;
@@ -49,7 +49,7 @@
             animation: fadeIn 0.5s ease-out;
         }
 
-        /* Custom color palette */
+        /* Color palette */
         :root {
             --primary-color: #a7c957;
             --primary-dark: #95b44a;
@@ -98,7 +98,7 @@
             background: linear-gradient(135deg, var(--background-color), var(--white));
         }
 
-        /* Card hover effect */
+        /* Card styling */
         .message-card {
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
@@ -108,7 +108,7 @@
             box-shadow: 0 4px 12px rgba(163, 177, 138, 0.15);
         }
 
-        /* Custom button styles */
+        /* Buttons */
         .btn-primary {
             padding: 0.625rem 1.5rem;
             border-radius: 0.5rem;
@@ -129,7 +129,7 @@
             transform: translateY(0);
         }
 
-        /* Message card styling */
+        /* Message cards */
         .message-card {
             background: var(--white);
             border: 1px solid rgba(163, 177, 138, 0.3);
@@ -140,7 +140,7 @@
             border-color: var(--primary-color);
         }
 
-        /* Category colors */
+        /* Category badges */
         .category-suggestion {
             background-color: rgba(167, 201, 87, 0.15);
             color: #2d3748;
@@ -172,10 +172,8 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
-        // API base - set from hosting environment if needed
         const API_BASE = window.__API_BASE__ || 'https://api.example.com';
 
-        // Main App Component
         function App() {
             const categories = [
                 { id: 'suggestion', label: 'Suggestion', icon: '💡', color: 'category-suggestion' },
@@ -187,7 +185,7 @@
             const [messages, setMessages] = useState([]);
             const [loadingMessages, setLoadingMessages] = useState(false);
 
-            // Load messages from API on mount
+            /* Fetch messages from API on component mount */
             useEffect(() => {
                 let cancelled = false;
                 async function load() {
@@ -197,7 +195,6 @@
                         if (!res.ok) throw new Error('Failed to fetch messages');
                         const data = await res.json();
                         if (!cancelled) {
-                            // Map timestamp strings to Date where possible
                             const normalized = data.map(m => ({ ...m, timestamp: m.timestamp ? new Date(m.timestamp) : new Date() }));
                             setMessages(normalized);
                         }
@@ -216,7 +213,7 @@
             const [isPosting, setIsPosting] = useState(false);
             const messagesEndRef = useRef(null);
 
-            // Function to handle posting a new message (POST to API)
+            /* Handle posting a new message to the API */
             const handlePostMessage = async () => {
                 if (newMessage.trim() === '' || selectedCategory === 'all') return;
                 setIsPosting(true);
@@ -231,12 +228,10 @@
                         throw new Error(txt || 'Failed to post message');
                     }
                     const created = await res.json();
-                    // normalize timestamp
                     created.timestamp = created.timestamp ? new Date(created.timestamp) : new Date();
                     setMessages(prev => [created, ...prev]);
                     setNewMessage('');
                     setSelectedCategory('all');
-                    // scroll
                     if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
                 } catch (err) {
                     console.error(err);
@@ -246,9 +241,7 @@
                 }
             };
 
-            // Messages are now fetched from API only; no localStorage persistence
-
-            // Function to handle liking a message (POST to API)
+            /* Handle liking a message */
             const handleLikeMessage = async (id) => {
                 try {
                     const res = await fetch(`${API_BASE}/api/messages/${id}/like`, { method: 'POST' });
@@ -257,12 +250,11 @@
                     setMessages(prev => prev.map(m => m.id === updated.id ? { ...m, likes: updated.likes } : m));
                 } catch (err) {
                     console.error(err);
-                    // optimistic fallback: still increment locally
                     setMessages(prev => prev.map(msg => msg.id === id ? { ...msg, likes: msg.likes + 1 } : msg));
                 }
             };
 
-            // Format timestamp to relative time
+            /* Format timestamp to relative time display */
             const formatTime = (timestamp) => {
                 const now = new Date();
                 const diffMs = now - timestamp;
@@ -495,7 +487,6 @@
             );
         }
 
-        // Render the App
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>

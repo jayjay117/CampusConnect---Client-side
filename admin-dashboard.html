@@ -89,16 +89,14 @@
             });
             const [analyticsFocus, setAnalyticsFocus] = useState(null);
 
-            // Authentication check: verify token and redirect to login if not authenticated
+            /* Authentication & user initialization */
             useEffect(() => {
                 const token = localStorage.getItem('cc_token');
                 if (!token) {
-                    // No token found; redirect to login
                     window.location.href = 'admin-login.html';
                     return;
                 }
 
-                // Load admin user info if available from localStorage or set a default
                 const adminData = localStorage.getItem('adminUser');
                 if (adminData) {
                     try {
@@ -111,12 +109,12 @@
                 }
             }, []);
 
-            // Auto-refresh / polling from API (API is the single source of truth)
+            /* Auto-refresh messages from API with polling */
             useEffect(() => {
                 const API_BASE = window.__API_BASE__ || 'https://api.example.com';
                 const token = localStorage.getItem('cc_token');
                 let isMounted = true;
-                const pollIntervalMs = 15000; // 15s
+                const pollIntervalMs = 15000;
 
                 const normalize = (m) => ({
                     ...m,
@@ -126,7 +124,6 @@
                 const fetchMessages = async () => {
                     try {
                         const headers = { 'Content-Type': 'application/json' };
-                        // Include token in headers if available
                         if (token) {
                             headers['Authorization'] = `Bearer ${token}`;
                         }
@@ -134,7 +131,6 @@
                         const res = await fetch(`${API_BASE}/api/messages`, { headers });
 
                         if (res.status === 401) {
-                            // Unauthorized; token may be invalid; redirect to login
                             localStorage.removeItem('cc_token');
                             window.location.href = 'admin-login.html';
                             return;
@@ -151,14 +147,10 @@
                         setMessages(apiMsgs);
                     } catch (err) {
                         console.error('Failed to fetch messages from API:', err);
-                        // On error, messages remain in their current state
                     }
                 };
 
-                // Initial fetch
                 fetchMessages();
-
-                // Polling
                 const iv = setInterval(fetchMessages, pollIntervalMs);
 
                 return () => {
@@ -167,26 +159,22 @@
                 };
             }, []);
 
-            // Recompute stats whenever messages change
+            /* Compute dashboard statistics */
             useEffect(() => {
                 const total = messages.length;
                 const unread = messages.filter(m => (m.status || '').toLowerCase() === 'new').length;
 
-                // Consider messages with status 'reviewed' or 'resolved' as responded
                 const respondedCount = messages.filter(m => {
                     const s = (m.status || '').toLowerCase();
                     return s === 'reviewed' || s === 'resolved' || s === 'responded';
                 }).length;
 
-                // Response rate as percentage of responded messages
                 const responseRate = total > 0 ? Math.round((respondedCount / total) * 100) : 0;
 
-                // Average response time: compute for messages that have a respondedAt/responseTimestamp field
                 const responseTimes = messages.map(m => {
                     const created = m.timestamp ? new Date(m.timestamp) : null;
                     const responded = m.respondedAt ? new Date(m.respondedAt) : (m.responseTimestamp ? new Date(m.responseTimestamp) : null);
                     if (created && responded) {
-                        // days difference
                         return (responded - created) / (1000 * 60 * 60 * 24);
                     }
                     return null;
@@ -202,7 +190,7 @@
                 });
             }, [messages]);
 
-            // Helpers to compute period-based counts and percent changes (calendar month/week semantics)
+            /* Period comparison helpers */
             const countInRange = (msgs, start, end, predicate) => {
                 return msgs.reduce((acc, m) => {
                     const ts = m.timestamp ? new Date(m.timestamp) : null;
@@ -217,7 +205,6 @@
 
             const percentChange = (prev, curr) => {
                 if (prev === 0) {
-                    // not enough previous data to compute a sensible percent.
                     return null;
                 }
                 const change = ((curr - prev) / prev) * 100;
@@ -231,9 +218,8 @@
             };
 
             const startOfWeek = (d) => {
-                // start week on Monday
                 const day = d.getDay();
-                const diff = (day + 6) % 7; // days since Monday
+                const diff = (day + 6) % 7;
                 const s = new Date(d);
                 s.setHours(0, 0, 0, 0);
                 s.setDate(d.getDate() - diff);
@@ -247,7 +233,7 @@
                 return prev;
             };
 
-            // compute totals with calendar month semantics
+            /* Compute month-over-month total feedback change */
             const computeTotalMonthComparison = (msgs) => {
                 const now = new Date();
                 const startCurr = startOfMonth(now);
@@ -258,7 +244,7 @@
                 return { prev, curr, change: percentChange(prev, curr) };
             };
 
-            // compute unread week comparison with calendar week semantics
+            /* Compute week-over-week unread feedback change */
             const computeUnreadWeekComparison = (msgs) => {
                 const now = new Date();
                 const startCurr = startOfWeek(now);
@@ -269,6 +255,7 @@
                 return { prev, curr, change: percentChange(prev, curr) };
             };
 
+            /* Calculate average response time in date range */
             const avgResponseTimeInRange = (msgs, start, end) => {
                 const times = [];
                 for (const m of msgs) {
@@ -283,6 +270,7 @@
                 return { avg: Number(avg.toFixed(1)), count: times.length };
             };
 
+            /* Compute week-over-week average response time change */
             const computeAvgResponseTimeWeekComparison = (msgs) => {
                 const now = new Date();
                 const startCurr = startOfWeek(now);
@@ -298,6 +286,7 @@
             const unreadWeekComp = computeUnreadWeekComparison(messages);
             const avgRespWeekComp = computeAvgResponseTimeWeekComparison(messages);
 
+            /* Format percent change display with colors and tooltips */
             const formatChangeWithCounts = (comp) => {
                 if (!comp) return { text: '—', icon: 'fas fa-minus', colorClass: 'text-gray-600', tooltip: '' };
                 const { prev, curr, change } = comp;
@@ -317,7 +306,7 @@
                 window.location.href = 'admin-login.html';
             };
 
-            // Format date
+            /* Format date for display */
             const formatDate = (dateString) => {
                 return new Date(dateString).toLocaleDateString('en-US', {
                     year: 'numeric',
@@ -326,7 +315,7 @@
                 });
             };
 
-            // Sidebar Component
+            /* Sidebar navigation component */
             const Sidebar = () => (
                 <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0">
                     <div className="flex-1 flex flex-col min-h-0 bg-white border-r border-gray-200">
@@ -380,7 +369,7 @@
                 </div>
             );
 
-            // Mobile Tab Bar
+            /* Mobile tab bar navigation */
             const MobileTabBar = () => (
                 <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
                     <div className="flex justify-around py-2">
@@ -407,7 +396,7 @@
                 </div>
             );
 
-            // Dashboard View
+            /* Dashboard view component */
             const DashboardView = () => (
                 <div className="space-y-6">
                     <div className="flex items-center justify-between">
@@ -537,7 +526,6 @@
                             <h3 className="text-lg font-semibold text-gray-900 mb-4">Feedback by Category</h3>
                             <div className="space-y-3">
                                 {(() => {
-                                    // derive category counts from messages
                                     const categoryKeys = {
                                         suggestion: 'Suggestion',
                                         complaint: 'Complaint',
@@ -545,7 +533,6 @@
                                         question: 'Question'
                                     };
                                     const counts = {};
-                                    // initialize
                                     Object.keys(categoryKeys).forEach(k => counts[k] = 0);
                                     messages.forEach(m => {
                                         const key = (m.category || '').toString().toLowerCase();
@@ -567,7 +554,7 @@
                 </div>
             );
 
-            // Feedback Management View
+            /* Feedback management view component */
             const FeedbackManagementView = () => {
                 const [filterStatus, setFilterStatus] = useState('all');
                 const [searchTerm, setSearchTerm] = useState('');
@@ -694,7 +681,7 @@
                 );
             };
 
-            // Analytics & Reports View
+            /* Analytics and reports view component */
             const AnalyticsView = () => (
                 <div className="space-y-6">
                     {analyticsFocus && (
@@ -785,9 +772,8 @@
                 </div>
             );
 
-            // Admin Management View
+            /* Admin management view component */
             const AdminManagementView = () => {
-                // start with no admins until real accounts are created/loaded
                 const [admins, setAdmins] = useState([]);
 
                 return (
@@ -855,7 +841,7 @@
                 );
             };
 
-            // Settings View
+            /* Settings and profile view component */
             const SettingsView = () => (
                 <div className="space-y-6">
                     <div>
@@ -934,7 +920,7 @@
                 </div>
             );
 
-            // Helper function for category colors
+            /* Helper functions for styling and analysis */
             const getCategoryColor = (category) => {
                 const colors = {
                     'Suggestion': 'bg-blue-100 text-blue-800',
@@ -945,7 +931,6 @@
                 return colors[category] || 'bg-gray-100 text-gray-800';
             };
 
-            // Helper function for status colors
             const getStatusColor = (status) => {
                 const colors = {
                     'new': 'bg-red-100 text-red-800',
@@ -955,7 +940,6 @@
                 return colors[status] || 'bg-gray-100 text-gray-800';
             };
 
-            // Naive sentiment computation (client-side dev helper)
             const computeSentimentPercent = (msgs) => {
                 if (!msgs || msgs.length === 0) return 0;
                 const positiveWords = ['good', 'great', 'love', 'awesome', 'happy', 'like', 'thanks', 'thank', 'excellent', 'amazing', 'positive', 'enjoy'];
@@ -983,7 +967,6 @@
                 const entries = Object.entries(counts);
                 if (entries.length === 0) return null;
                 entries.sort((a, b) => b[1] - a[1]);
-                // map id-like keys to label case
                 const mapping = {
                     'suggestion': 'Suggestion',
                     'complaint': 'Complaint',

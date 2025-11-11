@@ -103,10 +103,8 @@
 
     <script type="text/babel">
         const { useState } = React;
-        // API base URL - can be overridden by embedding script that sets window.__API_BASE__
         const API_BASE = window.__API_BASE__ || 'https://api.example.com';
 
-        // Login Component
         function Login() {
             const [formData, setFormData] = useState({
                 email: '',
@@ -123,7 +121,7 @@
                 setError('');
             };
 
-            // API-first login: authenticate with backend
+            /* Authenticate with backend API */
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 setIsLoading(true);
@@ -157,13 +155,10 @@
                         throw new Error('No authentication token received from server');
                     }
 
-                    // Store token for authenticated requests
                     localStorage.setItem('cc_token', token);
-                    // Also optionally store admin user info if backend provides it
                     if (data.user) {
                         localStorage.setItem('adminUser', JSON.stringify(data.user));
                     }
-                    // Redirect to admin dashboard (relative path)
                     window.location.href = 'admin-dashboard.html';
                 } catch (err) {
                     console.error(err);
@@ -331,7 +326,6 @@
             );
         }
 
-        // Render the Login Component
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<Login />);
     </script>
